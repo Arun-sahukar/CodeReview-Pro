@@ -1,0 +1,18 @@
+# Common
+node_modules/
+.DS_Store
+.env
+.env.*
+dist/
+build/
+*.log
+
+# Frontend
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+
+# Backend
+backend/dist/
+backend/node_modules/
+backend/.env
