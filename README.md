@@ -57,7 +57,8 @@ Open [http://localhost:3000](http://localhost:3000) to see the dashboard!
 
 ## 📸 Screenshots
 
-*(Add your screenshots here)*
+<img width="2864" height="1524" alt="Screenshot 2026-03-30 215936" src="https://github.com/user-attachments/assets/6e2c8bb0-3db6-46eb-8954-6995252d95dc" />
+
 
 ## 📄 License
 MIT
