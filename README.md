@@ -33,7 +33,7 @@ Built as a production-grade portfolio project, it demonstrates advanced patterns
 - Automatic code analysis on submission
 - Categorised feedback: `security`, `performance`, `style`, `bug_risk`, `best_practice`
 - Line-level suggestions with severity levels (`error`, `warning`, `info`)
-- Async processing via BullMQ job queue (production) / mock analysis (demo)
+- Async processing via `setTimeout` mock pipeline (production would use a job queue like BullMQ)
 
 ### ⚡ Real-Time Collaboration
 - Multi-user simultaneous code editing powered by **Yjs CRDTs**
@@ -65,18 +65,19 @@ Built as a production-grade portfolio project, it demonstrates advanced patterns
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | Next.js 16 (App Router), React 19, TypeScript |
+| **Frontend** | Next.js 16.1 (App Router), React 19, TypeScript |
 | **State Management** | Zustand |
-| **Data Fetching** | TanStack React Query |
+| **Data Fetching** | TanStack React Query, Axios |
 | **Code Editor** | Monaco Editor + `@monaco-editor/react` |
 | **Real-Time Sync** | Yjs CRDTs, `y-monaco`, Socket.IO Client |
 | **Charts** | Recharts |
+| **Icons** | Lucide React |
 | **Backend** | NestJS 10, TypeScript |
 | **Database** | MongoDB via Mongoose (`mongodb-memory-server` for dev) |
 | **Auth** | Passport.js, JWT (`@nestjs/jwt`), Bcryptjs |
 | **WebSockets** | `@nestjs/websockets`, `@nestjs/platform-socket.io` |
 | **Validation** | `class-validator`, `class-transformer` |
-| **AI** | OpenAI GPT-4o (pattern-based mock in demo mode) |
+| **AI** | Pattern-based mock analyser (production-ready for OpenAI GPT-4o integration) |
 
 ---
 
@@ -92,8 +93,10 @@ codereview-pro/
 │       │   │   ├── page.tsx     # Reviews list with filters
 │       │   │   └── [id]/        # Review detail + editor
 │       │   ├── admin/           # Team & roles management
-│       │   ├── login/           # Auth pages
-│       │   └── globals.css      # Design system (CSS variables)
+│       │   ├── login/           # Login page
+│       │   ├── register/        # Registration page
+│       │   ├── globals.css      # Design system (CSS variables)
+│       │   └── page.module.css  # Home page styles
 │       ├── components/
 │       │   └── Sidebar.tsx      # Navigation sidebar
 │       └── lib/
@@ -106,7 +109,7 @@ codereview-pro/
         ├── auth/                # JWT auth, user schema, guards
         ├── reviews/             # Review CRUD, smart assignment, AI trigger
         ├── comments/            # Threaded comments with replies
-        ├── ai/                  # AI analysis service (mock + real)
+        ├── ai/                  # AI analysis service (pattern-based mock)
         ├── gateway/             # WebSocket gateway (Socket.IO)
         ├── common/
         │   ├── data-store.ts    # Seed data definitions
@@ -159,8 +162,10 @@ Navigate to [http://localhost:3000](http://localhost:3000).
 **Demo credentials:**
 ```
 Email:    alex@codereview.pro
-Password: password   (or any string)
+Password: password
 ```
+
+> **Note:** The demo seed uses pre-hashed passwords. Any string will work as login is relaxed in demo mode via the mock API fallback on the frontend.
 
 > **Offline mode:** The frontend falls back to built-in mock data automatically if the backend is not running. All pages remain fully functional.
 
@@ -214,7 +219,7 @@ socket.on('code:updated', (update) => {
 });
 ```
 
-**Known challenge solved:** Duplicate Socket.IO event listener registration on reconnect was debugged by moving the `ydoc.on('update')` listener cleanup into the `useEffect` teardown, preventing stacked handlers across reconnect cycles.
+**Design note:** The `ydoc.on('update')` listener is registered once per `useEffect` lifecycle. Socket disconnection in the cleanup function (`socket.disconnect()`) prevents duplicate event propagation across remounts. A potential improvement would be to explicitly remove the `ydoc` update listener in the teardown to guard against edge-case stacking on rapid reconnect cycles.
 
 ### Smart Reviewer Assignment
 
@@ -232,7 +237,7 @@ const candidates = await this.userModel.find({
 
 ### AI Feedback Pipeline
 
-In production, code analysis is queued via **BullMQ** to avoid blocking the HTTP response. The demo mode uses a pattern-based synchronous analyser that detects hardcoded secrets, `eval()` usage, `await` inside `forEach`, loose equality checks, and more.
+Code analysis runs asynchronously via `setTimeout` after review creation to avoid blocking the HTTP response. The analyser uses pattern-based detection for hardcoded secrets, `eval()` usage, `await` inside `forEach`, loose equality checks, `console.log` statements, and long lines. In a production deployment, this could be replaced with a job queue (e.g., BullMQ) backed by Redis for more robust async processing.
 
 ---
 
