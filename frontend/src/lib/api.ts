@@ -187,4 +187,42 @@ export async function analyzeCode(code: string, language: string) {
   return data;
 }
 
+export async function updateReviewStatus(reviewId: string, status: string) {
+  const data = await apiFetch(`/reviews/${reviewId}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  });
+  return data;
+}
+
+export async function addComment(reviewId: string, authorId: string, line: number, content: string) {
+  const data = await apiFetch('/comments', {
+    method: 'POST',
+    body: JSON.stringify({ reviewId, authorId, line, content }),
+  });
+  return data;
+}
+
+export async function reanalyzeReview(reviewId: string) {
+  const data = await apiFetch(`/ai/analyze/${reviewId}`, {
+    method: 'POST',
+  });
+  return data;
+}
+
+export async function createReview(data: {
+  title: string;
+  description: string;
+  authorId: string;
+  fileName: string;
+  code: string;
+  language: string;
+}) {
+  const result = await apiFetch('/reviews', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return result;
+}
+
 export { MOCK_REVIEWS, MOCK_USERS, MOCK_COMMENTS, MOCK_STATS };

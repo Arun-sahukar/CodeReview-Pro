@@ -1,15 +1,22 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import * as Y from 'yjs';
 import { useAuthStore } from './stores';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
 
+export interface ActiveUser {
+  reviewId: string;
+  userId: string;
+  userName: string;
+  color: string;
+}
+
 export function useRealtime(reviewId: string) {
   const socketRef = useRef<Socket | null>(null);
-  const [activeUsers, setActiveUsers] = useState<any[]>([]);
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const user = useAuthStore((s) => s.user);
   const [ydoc] = useState(() => new Y.Doc());
 
@@ -26,7 +33,7 @@ export function useRealtime(reviewId: string) {
       color: user.avatarColor,
     });
 
-    socket.on('users:active', (users: any[]) => {
+    socket.on('users:active', (users: ActiveUser[]) => {
       setActiveUsers(users);
     });
 
@@ -34,11 +41,14 @@ export function useRealtime(reviewId: string) {
       Y.applyUpdate(ydoc, new Uint8Array(update));
     });
 
-    ydoc.on('update', (update) => {
+    const handleYjsUpdate = (update: Uint8Array) => {
       socket.emit('code:change', { reviewId, changes: update.buffer });
-    });
+    };
+
+    ydoc.on('update', handleYjsUpdate);
 
     return () => {
+      ydoc.off('update', handleYjsUpdate);
       socket.disconnect();
     };
   }, [reviewId, user, ydoc]);

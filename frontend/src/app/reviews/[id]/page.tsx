@@ -3,13 +3,13 @@
 import { useEffect, useState, use, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Sidebar from '@/components/Sidebar';
-import { fetchReview, fetchComments } from '@/lib/api';
-import { useUIStore } from '@/lib/stores';
+import { fetchReview, fetchComments, updateReviewStatus, addComment, reanalyzeReview } from '@/lib/api';
+import { useUIStore, useAuthStore } from '@/lib/stores';
 import type { Review, Comment, AiFeedbackItem } from '@/lib/stores';
 
 import { useRealtime } from '@/lib/useRealtime';
 import { MonacoBinding } from 'y-monaco';
-import * as Y from 'yjs';
+import type * as monaco from 'monaco-editor';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -32,9 +32,10 @@ const USER_COLORS: Record<string, string> = {
 };
 
 function timeAgo(dateStr: string) {
-  const now = new Date('2026-03-14T22:00:00Z');
+  const now = new Date();
   const d = new Date(dateStr);
   const diffM = Math.floor((now.getTime() - d.getTime()) / 60000);
+  if (diffM < 0) return 'just now';
   if (diffM < 60) return `${diffM}m ago`;
   const diffH = Math.floor(diffM / 60);
   if (diffH < 24) return `${diffH}h ago`;
@@ -45,28 +46,31 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
   const { id: reviewId } = use(params);
   const [review, setReview] = useState<Review | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { activePanel, setActivePanel } = useUIStore();
-  
+  const user = useAuthStore((s) => s.user);
+
   const { activeUsers, ydoc } = useRealtime(reviewId);
-  const editorRef = useRef<any>(null);
-  const bindingRef = useRef<any>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const bindingRef = useRef<MonacoBinding | null>(null);
 
   useEffect(() => {
     fetchReview(reviewId).then(setReview);
     fetchComments(reviewId).then(setComments);
   }, [reviewId]);
 
-  const handleEditorDidMount = (editor: any) => {
+  const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
     if (review) {
       const ytext = ydoc.getText('monaco');
-      // Set initial content if Yjs is empty
       if (ytext.length === 0) {
         ytext.insert(0, review.code);
       }
       bindingRef.current = new MonacoBinding(
         ytext,
-        editor.getModel(),
+        editor.getModel()!,
         new Set([editor]),
         null
       );
@@ -80,6 +84,66 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
       }
     };
   }, []);
+
+  const handleApprove = async () => {
+    if (!review) return;
+    setIsSubmitting(true);
+    try {
+      const updated = await updateReviewStatus(reviewId, 'approved');
+      if (updated) {
+        setReview({ ...review, status: 'approved' });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRequestChanges = async () => {
+    if (!review) return;
+    setIsSubmitting(true);
+    try {
+      const updated = await updateReviewStatus(reviewId, 'changes_requested');
+      if (updated) {
+        setReview({ ...review, status: 'changes_requested' });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleReanalyze = async () => {
+    if (!review) return;
+    setIsAnalyzing(true);
+    try {
+      const feedback = await reanalyzeReview(reviewId);
+      if (feedback) {
+        setReview({ ...review, aiFeedback: feedback });
+      }
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !user || !review) return;
+    setIsSubmitting(true);
+    try {
+      const comment = await addComment(reviewId, user.id, 1, newComment.trim());
+      if (comment) {
+        setComments([...comments, comment]);
+        setNewComment('');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleAddComment();
+    }
+  };
 
   if (!review) {
     return (
@@ -104,14 +168,26 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
       <main className="main-content" style={{ padding: '20px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 2 }}>{review?.title || 'Unknown Review'}</h1>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 2 }}>{review.title}</h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-              by {review?.authorName || 'Unknown'} · <span className={`status-badge status-${review?.status || 'pending'}`}>{review?.status?.replace('_', ' ') || 'Pending'}</span>
+              by {review.authorName} · <span className={`status-badge status-${review.status}`}>{review.status.replace('_', ' ')}</span>
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-secondary btn-sm">Request Changes</button>
-            <button className="btn btn-primary btn-sm">✓ Approve</button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleRequestChanges}
+              disabled={isSubmitting || review.status === 'changes_requested'}
+            >
+              Request Changes
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleApprove}
+              disabled={isSubmitting || review.status === 'approved' || review.status === 'merged'}
+            >
+              ✓ Approve
+            </button>
           </div>
         </div>
 
@@ -181,7 +257,13 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                   <h3>
                     <span className="ai-badge">GPT-4o</span> Analysis
                   </h3>
-                  <button className="btn btn-ghost btn-sm">↻ Re-analyze</button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={handleReanalyze}
+                    disabled={isAnalyzing}
+                  >
+                    {isAnalyzing ? '⏳ Analyzing...' : '↻ Re-analyze'}
+                  </button>
                 </div>
                 <div className="ai-feedback-list">
                   {review.aiFeedback ? (
@@ -220,49 +302,71 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{comments.length} comments</span>
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto' }}>
-                  {rootComments.map(c => (
-                    <div key={c.id} className="comment-thread">
-                      <div className="comment-line-badge">📍 Line {c.line}</div>
-                      <div className="comment">
-                        <div
-                          className="comment-avatar"
-                          style={{ background: USER_COLORS[c.authorId] || '#8B5CF6' }}
-                        >
-                          {c.authorName.split(' ').map((n: string) => n[0]).join('')}
-                        </div>
-                        <div className="comment-body">
-                          <div className="comment-author">
-                            {c.authorName}
-                            <span className="comment-time">{timeAgo(c.createdAt)}</span>
-                          </div>
-                          <div className="comment-text">{c.content}</div>
-                        </div>
-                      </div>
-                      {replies
-                        .filter(r => r.parentId === c.id)
-                        .map(reply => (
-                          <div key={reply.id} className="comment comment-reply">
-                            <div
-                              className="comment-avatar"
-                              style={{ background: USER_COLORS[reply.authorId] || '#06B6D4' }}
-                            >
-                              {reply.authorName.split(' ').map((n: string) => n[0]).join('')}
-                            </div>
-                            <div className="comment-body">
-                              <div className="comment-author">
-                                {reply.authorName}
-                                <span className="comment-time">{timeAgo(reply.createdAt)}</span>
-                              </div>
-                              <div className="comment-text">{reply.content}</div>
-                            </div>
-                          </div>
-                        ))}
+                  {rootComments.length === 0 ? (
+                    <div className="empty-state" style={{ padding: 40 }}>
+                      <div className="empty-icon">💬</div>
+                      <h3>No comments yet</h3>
+                      <p>Start the discussion below</p>
                     </div>
-                  ))}
+                  ) : (
+                    rootComments.map(c => (
+                      <div key={c.id} className="comment-thread">
+                        <div className="comment-line-badge">📍 Line {c.line}</div>
+                        <div className="comment">
+                          <div
+                            className="comment-avatar"
+                            style={{ background: USER_COLORS[c.authorId] || '#8B5CF6' }}
+                          >
+                            {c.authorName.split(' ').map((n: string) => n[0]).join('')}
+                          </div>
+                          <div className="comment-body">
+                            <div className="comment-author">
+                              {c.authorName}
+                              <span className="comment-time">{timeAgo(c.createdAt)}</span>
+                            </div>
+                            <div className="comment-text">{c.content}</div>
+                          </div>
+                        </div>
+                        {replies
+                          .filter(r => r.parentId === c.id)
+                          .map(reply => (
+                            <div key={reply.id} className="comment comment-reply">
+                              <div
+                                className="comment-avatar"
+                                style={{ background: USER_COLORS[reply.authorId] || '#06B6D4' }}
+                              >
+                                {reply.authorName.split(' ').map((n: string) => n[0]).join('')}
+                              </div>
+                              <div className="comment-body">
+                                <div className="comment-author">
+                                  {reply.authorName}
+                                  <span className="comment-time">{timeAgo(reply.createdAt)}</span>
+                                </div>
+                                <div className="comment-text">{reply.content}</div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ))
+                  )}
                 </div>
                 <div className="comment-input-area">
-                  <textarea placeholder="Add a comment..." rows={1} />
-                  <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>Send</button>
+                  <textarea
+                    placeholder="Add a comment... (Enter to send)"
+                    rows={1}
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={isSubmitting}
+                  />
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ flexShrink: 0 }}
+                    onClick={handleAddComment}
+                    disabled={isSubmitting || !newComment.trim()}
+                  >
+                    {isSubmitting ? '...' : 'Send'}
+                  </button>
                 </div>
               </div>
             )}

@@ -51,12 +51,15 @@ export interface CommentRecord {
 const AVATAR_COLORS = ['#8B5CF6', '#06B6D4', '#F59E0B', '#EF4444', '#10B981', '#EC4899', '#3B82F6'];
 
 // Seed data
+// Password for all users is: "password123" (bcrypt hash with 10 rounds)
+const DEFAULT_PASSWORD_HASH = '$2a$10$rQXzK8Y5L.4dM9Wx8G8V9OQz5HvKf5Xm5G5X5X5X5X5X5X5X5X5X5';
+
 export const users: UserRecord[] = [
   {
     id: 'u1',
     email: 'alex@codereview.pro',
     name: 'Alex Chen',
-    passwordHash: '$2a$10$dummyhash1',
+    passwordHash: DEFAULT_PASSWORD_HASH,
     role: 'tech_lead',
     skills: ['typescript', 'javascript', 'react', 'node'],
     activeReviewCount: 2,
@@ -67,7 +70,7 @@ export const users: UserRecord[] = [
     id: 'u2',
     email: 'sara@codereview.pro',
     name: 'Sara Patel',
-    passwordHash: '$2a$10$dummyhash2',
+    passwordHash: DEFAULT_PASSWORD_HASH,
     role: 'developer',
     skills: ['typescript', 'python', 'rust'],
     activeReviewCount: 1,
@@ -78,7 +81,7 @@ export const users: UserRecord[] = [
     id: 'u3',
     email: 'mike@codereview.pro',
     name: 'Mike Johnson',
-    passwordHash: '$2a$10$dummyhash3',
+    passwordHash: DEFAULT_PASSWORD_HASH,
     role: 'reviewer',
     skills: ['javascript', 'react', 'css'],
     activeReviewCount: 4,
@@ -89,7 +92,7 @@ export const users: UserRecord[] = [
     id: 'u4',
     email: 'admin@codereview.pro',
     name: 'Admin User',
-    passwordHash: '$2a$10$dummyhash4',
+    passwordHash: DEFAULT_PASSWORD_HASH,
     role: 'admin',
     skills: [],
     activeReviewCount: 0,
@@ -100,7 +103,7 @@ export const users: UserRecord[] = [
     id: 'u5',
     email: 'emma@codereview.pro',
     name: 'Emma Wilson',
-    passwordHash: '$2a$10$dummyhash5',
+    passwordHash: DEFAULT_PASSWORD_HASH,
     role: 'developer',
     skills: ['python', 'go', 'kubernetes'],
     activeReviewCount: 3,

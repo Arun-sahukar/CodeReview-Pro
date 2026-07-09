@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { v4 as uuid } from 'uuid';
-import { AiFeedbackItem, reviews } from '../common/data-store';
+import { Review, AiFeedbackItem } from '../reviews/review.schema';
 
 @Injectable()
 export class AiService {
+  constructor(
+    @InjectModel(Review.name) private reviewModel: Model<Review>,
+  ) {}
   /**
    * Analyzes code and returns AI feedback.
    * In production, this would call OpenAI GPT-4o via BullMQ queue.
@@ -108,12 +113,14 @@ export class AiService {
   }
 
   async analyzeReview(reviewId: string): Promise<AiFeedbackItem[]> {
-    const review = reviews.find(r => r.id === reviewId);
+    const review = await this.reviewModel.findById(reviewId).exec();
     if (!review) throw new Error('Review not found');
 
     const feedback = await this.analyzeCode(review.code, review.language);
-    review.aiFeedback = feedback;
-    review.updatedAt = new Date().toISOString();
+    await this.reviewModel.findByIdAndUpdate(reviewId, {
+      aiFeedback: feedback,
+      updatedAt: new Date().toISOString()
+    }).exec();
     return feedback;
   }
 }

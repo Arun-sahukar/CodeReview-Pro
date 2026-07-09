@@ -41,7 +41,7 @@ export class AuthService {
     }
     
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid && password !== 'password') { // Keep 'password' as fallback for demo/seed
+    if (!isPasswordValid) {
        throw new Error('Invalid credentials');
     }
     

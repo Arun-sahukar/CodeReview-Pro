@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import * as bcrypt from 'bcryptjs';
 import { User } from '../auth/user.schema';
 import { Review } from '../reviews/review.schema';
 import { Comment } from '../comments/comment.schema';
@@ -29,7 +30,8 @@ export class SeedService implements OnModuleInit {
       // 1. Seed Users
       // Need to map old IDs (u1, u2...) to Mongo ObjectIds
       const userMap: Record<string, Types.ObjectId> = {};
-      
+      const defaultPasswordHash = await bcrypt.hash('password123', 10);
+
       for (const u of users) {
         const id = new Types.ObjectId();
         userMap[u.id] = id;
@@ -37,7 +39,7 @@ export class SeedService implements OnModuleInit {
           _id: id,
           email: u.email,
           name: u.name,
-          passwordHash: u.passwordHash,
+          passwordHash: defaultPasswordHash,
           role: u.role,
           skills: u.skills,
           activeReviewCount: u.activeReviewCount,
@@ -68,15 +70,25 @@ export class SeedService implements OnModuleInit {
       }
 
       // 3. Seed Comments
+      const commentMap: Record<string, Types.ObjectId> = {};
+
+      // First pass: create all comments without parentId
+      for (const c of comments) {
+        const commentId = new Types.ObjectId();
+        commentMap[c.id] = commentId;
+      }
+
+      // Second pass: save with proper parentId mapping
       for (const c of comments) {
         await new this.commentModel({
+          _id: commentMap[c.id],
           reviewId: reviewMap[c.reviewId],
           authorId: userMap[c.authorId],
           authorName: c.authorName,
           line: c.line,
           content: c.content,
           resolved: c.resolved,
-          parentId: c.parentId ? new Types.ObjectId() : null, // Simplification for seed
+          parentId: c.parentId ? commentMap[c.parentId] : null,
         }).save();
       }
 

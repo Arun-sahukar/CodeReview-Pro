@@ -162,10 +162,10 @@ Navigate to [http://localhost:3000](http://localhost:3000).
 **Demo credentials:**
 ```
 Email:    alex@codereview.pro
-Password: password
+Password: password123
 ```
 
-> **Note:** The demo seed uses pre-hashed passwords. Any string will work as login is relaxed in demo mode via the mock API fallback on the frontend.
+> **Note:** All demo users share the same password (`password123`). The database is seeded automatically on first run.
 
 > **Offline mode:** The frontend falls back to built-in mock data automatically if the backend is not running. All pages remain fully functional.
 
